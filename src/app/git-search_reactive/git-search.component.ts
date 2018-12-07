@@ -1,8 +1,9 @@
 import { Component, OnInit } from '@angular/core';
-import { UnifiedSearchService } from '../unified-search.service'
+import {  GitSearchService } from '../git-search.service';
 import { GitSearch } from '../git-search';
 import { ActivatedRoute, ParamMap, Router } from '@angular/router';
-import { AdvancedSearchModel } from '../advanced-search-model'
+import { AdvancedSearchModel } from '../advanced-search-model';
+import { FormControl, FormGroup, Validators  } from '@angular/forms'
 
 @Component({
   selector: 'app-git-search',
@@ -15,16 +16,40 @@ export class GitSearchComponent implements OnInit {
   searchQuery: string;
   title: string;
   displayQuery: string;
-  favorites: Array<number> = [];
+  form: FormGroup;
+  formControls = {};
 
   constructor(
-    private UnifiedSearchService: UnifiedSearchService,
+    private GitSearchService: GitSearchService,
     private route: ActivatedRoute,
     private router: Router
-  ) { }
+  ) { 
+    this.modelKeys.forEach( (key) => {
+      let validators = [];
+       if (key === 'q') {
+        validators.push(Validators.required);
+      }
+      if (key === 'stars') {
+        validators.push(Validators.maxLength(4))
+      }
+      validators.push(this.noSpecialChars);
+      this.formControls[key] = new FormControl(this.model[key], validators);
+    });
+    this.form = new FormGroup(this.formControls);
+  }
 
   model = new AdvancedSearchModel('', '', '', null, null, '');
   modelKeys = Object.keys(this.model);
+
+  noSpecialChars(c: FormControl) {
+    let REGEXP = new RegExp(/[~`!#$%\^&*+=\-\[\]\\';,/{}|\\":<>\?]/);
+
+    return REGEXP.test(c.value) ? {
+        validateEmail: {
+        valid: false
+        }
+    } : null;
+}
 
   ngOnInit() {
 
@@ -39,8 +64,7 @@ export class GitSearchComponent implements OnInit {
     })
   }
   gitSearch = () => {
-    this.UnifiedSearchService.unifiedSearch(this.searchQuery).subscribe((response) => {
-      console.log(response);
+    this.GitSearchService.gitSearch(this.searchQuery).then((response) => {
       this.searchResults = response;
     }, (error) => {
       alert("Error: " + error.statusText)
@@ -48,29 +72,22 @@ export class GitSearchComponent implements OnInit {
   }
   sendQuery = () => {
     this.searchResults = null;
-    let search : string = this.model.q;
+    let search : string = this.form.value['q'];
     let params : string = "";
     this.modelKeys.forEach(  (elem) => {
         if (elem === 'q') {
             return false;
         }
         if (this.model[elem]) {
-            params += '+' + elem + ':' + this.model[elem];
+            params += '+' + elem + ':' + this.form.value[elem];
         }
     })
     this.searchQuery = search;
     if (params !== '') {
-        this.searchQuery = search + params;
+        this.searchQuery = search + '+' + params;
     }
     this.displayQuery = this.searchQuery;
     this.gitSearch();
-  }
-  checkType = (key) => {
-    return typeof key === 'string' ? 'text' : typeof key;
-  }
-
-  handleFavorite = (id) => {
-    return this.favorites.push(id);
   }
 
 }
